@@ -104,7 +104,7 @@ def compare(data, countries, filename='figures\\compare.png', threshold=None, sc
 
 
 def fit(values, model, lbounds, gbounds, guess=None, route='figures\\', title='Model',
-        tmin=0, tmax=50, scale=1000, days_range=4):
+        tmin=0, tmax=50, scale=1000, days_range=7):
 
     """Fit the real data to a model. Lower and greater bounds must be provided
        in order to fit a problem with many free parameters. An initial guess
@@ -126,7 +126,7 @@ def fit(values, model, lbounds, gbounds, guess=None, route='figures\\', title='M
     route = route + title.lower().replace(' ', '_') + '.png'
 
     days = np.arange(0, len(values))  # Calculates a time array, one day for each point in data
-    sol = optimize.curve_fit(model, days, values, p0=guess, bounds=(lbounds, gbounds), maxfev=1E8)[0]  # Fit the curve
+    sol = optimize.curve_fit(model, days, values, p0=guess, bounds=(lbounds, gbounds))[0]  # Fit the curve
 
     days = np.arange(0, len(values))  # Defines the days array for the real data plot
     t = np.arange(tmin, tmax)  # Defines the time array for the model plot
@@ -148,8 +148,8 @@ def fit(values, model, lbounds, gbounds, guess=None, route='figures\\', title='M
     ax.set_xlim([tmin, tmax])
     initial_date = values.index.values[0]
     days_ticks = range(tmax)
-    days_labels = [str(pd.to_datetime(initial_date + np.timedelta64(i, 'D')).day) + '/' +
-                   str(pd.to_datetime(initial_date + np.timedelta64(i, 'D')).month) for i in days_ticks]
+    days_labels = [str(pd.to_datetime(initial_date + np.timedelta64(i, 'D')).day).zfill(2) + '/' +
+                   str(pd.to_datetime(initial_date + np.timedelta64(i, 'D')).month).zfill(2) for i in days_ticks]
 
     ax.set_xticks(days_ticks[::days_range])
     ax.set_xticklabels(days_labels[::days_range])

@@ -2,7 +2,7 @@ import numpy as np
 from scipy import interpolate, integrate
 
 
-def sir_model(x, initial_infected, beta, gamma, population, initial_recovered=0, tmax=365, n=1000):
+def sir_model(x, initial_infected, beta, gamma, population, t0, initial_recovered=0, tmax=365, n=1000):
 
     """"Uses SIR Model (https://en.wikipedia.org/wiki/Compartmental_models_in_epidemiology#The_SIR_model)
         to return the value of the Infected Curve at time x, given the SIR Model parameters.
@@ -13,12 +13,14 @@ def sir_model(x, initial_infected, beta, gamma, population, initial_recovered=0,
         - beta : (float) Transmission rate
         - gamma : (float) Typical time between contacts
         - population : (float) Susceptible population
+        - t0 : (float) Initial time to fix origin
         - initial_recovered : (float) Initial recovered individuals (Default 0)
         - tmax : (float) Time for integrating the differential equations, in days (Default 365)
         - n : (int) Number of time points for integrating the differential equations (Default 1000)"""
 
+    gamma = 1 / gamma
     initial_susceptible = population - initial_infected - initial_recovered  # Everyone who is susceptible to infection
-    t = np.linspace(0, tmax, n)  # Time vector for integrating
+    t = np.linspace(t0, tmax, n)  # Time vector for integrating
 
     def derivatives(y, _):
 
