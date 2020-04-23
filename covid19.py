@@ -4,7 +4,8 @@ import matplotlib.pyplot as plt
 from scipy import optimize
 
 
-def get_data(csv_route):
+def get_data(csv_route, date_label='Date', country_label='Country', confirmed_label='Confirmed',
+             deaths_label='Deaths', recovered_label='Recovered', drop_first=0, drop_last=0, dayfirst=False):
 
     """ Get the data from a .csv file. This .csv file must contain a time series with
         data for each date in one column, and must contain a 'Country' column.
@@ -12,10 +13,21 @@ def get_data(csv_route):
         an example of the time series format. Returns a pandas.DataFrame object.
 
         Parameters:
-        - csv_route : (str) Location to the .csv file (can be a local folder or an URL)"""
+        - csv_route : (str) Location to the .csv file (can be a local folder or an URL)
+        - date_label : (str) Name of the date column in the provided CSV file (Default 'Date')
+        - country_label : (str) Name of the country (or state) column in the provided CSV file (Default 'Country')
+        - confirmed_label : (str) Name of the confirmed cases column in the provided CSV file (Default 'Confirmed')
+        - deaths_label : (str) Name of the deaths column in the provided CSV file (Default 'Deaths')
+        - recovered_label : (str) Name of the recovered column in the provided CSV file (Default ('Recovered')
+        - drop_first : (int) Number of first lines to drop (Default 0)
+        - drop_last : (int) Number of last lines to drop (Default 0)
+        - dayfirst : (bool) True if date has the day before month (Default False)
+        """
 
-    df = pd.read_csv(csv_route).dropna()  # Pandas function to read the .csv file
-    df['Date'] = pd.to_datetime(df['Date'])  # Converts date strings to timestamp
+    df = pd.read_csv(csv_route, skiprows=drop_first, skipfooter=drop_last, engine='python').fillna(0) # Read the CSV
+    df = df.rename({date_label: 'Date', country_label: 'Country', confirmed_label: 'Confirmed',
+                    deaths_label: 'Deaths', recovered_label: 'Recovered'}, axis=1) # Rename using labels provided
+    df['Date'] = pd.to_datetime(df['Date'], dayfirst=dayfirst)  # Converts date strings to timestamp
     return df
 
 
