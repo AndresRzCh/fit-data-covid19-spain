@@ -2,10 +2,12 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import optimize
-
+from pandas.plotting import register_matplotlib_converters
+register_matplotlib_converters()
 
 def get_data(csv_route, date_label='Date', country_label='Country', confirmed_label='Confirmed',
-             deaths_label='Deaths', recovered_label='Recovered', drop_first=0, drop_last=0, dayfirst=False):
+             deaths_label='Deaths', recovered_label='Recovered', drop_first=0, drop_last=0, dayfirst=False,
+             sumcolumns=None):
 
     """ Get the data from a .csv file. This .csv file must contain a time series with
         data for each date in one column, and must contain a 'Country' column.
@@ -22,9 +24,13 @@ def get_data(csv_route, date_label='Date', country_label='Country', confirmed_la
         - drop_first : (int) Number of first lines to drop (Default 0)
         - drop_last : (int) Number of last lines to drop (Default 0)
         - dayfirst : (bool) True if date has the day before month (Default False)
+        - sumcolumns : (dict) If not None, for each key it takes the columns from a list and adds it (Default None)
         """
 
-    df = pd.read_csv(csv_route, skiprows=drop_first, skipfooter=drop_last, engine='python').fillna(0) # Read the CSV
+    df = pd.read_csv(csv_route, skiprows=drop_first, skipfooter=drop_last, engine='python').fillna(0)  # Read the CSV
+    if sumcolumns:
+        for col in sumcolumns:
+            df[col] = df[sumcolumns[col]].sum(axis=1)
     df = df.rename({date_label: 'Date', country_label: 'Country', confirmed_label: 'Confirmed',
                     deaths_label: 'Deaths', recovered_label: 'Recovered'}, axis=1) # Rename using labels provided
     df['Date'] = pd.to_datetime(df['Date'], dayfirst=dayfirst)  # Converts date strings to timestamp
@@ -63,6 +69,32 @@ def clean_data(data, country=None, threshold=None, lastminute=None):
         active[pd.datetime.now()] = lastminute[0] - lastminute[1] - lastminute[2]
 
     return confirmed, deaths, active
+
+
+def format_axis(ax, values, days_range, tmax=None):
+
+    """ Given an matplotlib.pyplot.axis object, it returns the same object formatting the date values on the x-axis
+
+        Parameters:
+        - ax (matplotlib.pyplot.axis) The axis to format
+        - values (pandas.DataFrame or pandas.Series) The data which appears on the plot
+        - days_range (int) Days between x-label ticks
+        - tmax (int) Maximum number of days to show, default chooses the lenght of values (Default None)"""
+
+    initial_date = values.index.values[0]  # Select the initial date
+
+    if tmax:
+        days_ticks = range(tmax)  # Expand or truncate to tmax if necesary
+    else:
+        days_ticks = range(len(values))  # Automatically chooses the lenght of values
+
+    # Format the labels to day / month strings
+    days_labels = [str(pd.to_datetime(initial_date + np.timedelta64(i, 'D')).day).zfill(2) + '/' +
+                   str(pd.to_datetime(initial_date + np.timedelta64(i, 'D')).month).zfill(2) for i in days_ticks]
+
+    ax.set_xticks(days_ticks[::days_range])  # Define the matplotlib xticks
+    ax.set_xticklabels(days_labels[::days_range])  # Define the matplotlib xlabels
+    return ax
 
 
 def compare(data, countries, filename='figures\\compare.png', threshold=None, scale=1000):
@@ -115,6 +147,57 @@ def compare(data, countries, filename='figures\\compare.png', threshold=None, sc
     return values
 
 
+def daily_increases(data, country, filename='figures\\daily.png', threshold=None, scale=None):
+
+    """ Given a list of countries, plots the daily confirmed/deaths with respect to the previous day.
+
+        Parameters:
+        - data : (pandas.DataFrame) Output of get_data() method
+        - countries : (list) List of strings containing the countries to compare
+        - filename : (str) Location and filename to save the plot (Default 'figures\\compare.png')
+        - scale :  (list) Scale for the y-axis for confirmed and deaths (Default None)"""
+
+    if scale is None:
+        scale = [1000, 1]
+
+    confirmed, deaths, _ = clean_data(data, country, threshold)  # Clean the data
+    confirmed = confirmed - confirmed.shift(1) # Calculate the increases
+    deaths = deaths  -deaths.shift(1)
+
+    fig, (ax1, ax2) = plt.subplots(figsize=(12, 4), ncols=2)  # Creates the Figure
+
+    ax1.bar(range(len(confirmed)), confirmed.values / scale[0])  # Confirmed Cases
+    ax2.bar(range(len(deaths)), deaths.values / scale[1])  # Deaths
+
+    print()
+
+    ax1.grid(b=True, which='major', c='k', lw=0.25, ls='-')  # Style the grid
+    ax2.grid(b=True, which='major', c='k', lw=0.25, ls='-')
+
+    ax1.set_xlabel('Date')  # Set the x-axis label
+    ax2.set_xlabel('Date')
+
+    ax1.set_ylabel('Confirmed (' + str(scale[0]) + ')')  # Set the y-axis label
+    ax2.set_ylabel('Deaths (' + str(scale[1]) + ')')
+
+    ax1.yaxis.set_tick_params(length=0)  # Style the y-axis labels
+    ax2.yaxis.set_tick_params(length=0)
+
+    ax1.xaxis.set_tick_params(length=0)  # Style the x-axis labels
+    ax2.xaxis.set_tick_params(length=0)
+
+    ax1 = format_axis(ax1, confirmed, 7)
+    ax2 = format_axis(ax2, confirmed, 7)
+
+    for spine in ('top', 'right', 'bottom', 'left'):
+        ax1.spines[spine].set_visible(False)  # Style the figure box
+        ax2.spines[spine].set_visible(False)
+
+    plt.tight_layout()
+    fig.savefig(filename)  # Save the figure into the route
+    return confirmed, deaths
+
+
 def fit(values, model, lbounds, gbounds, guess=None, route='figures\\', title='Model',
         tmin=0, tmax=50, scale=1000, days_range=7):
 
@@ -151,20 +234,15 @@ def fit(values, model, lbounds, gbounds, guess=None, route='figures\\', title='M
     ax.legend().get_frame().set_alpha(0.5)  # Style the legend
     ax.grid(b=True, which='major', c='k', lw=0.25, ls='-')  # Style the grid
 
-    ax.set_xlabel('Days')  # Set the x-axis label
+    ax.set_xlabel('Date')  # Set the x-axis label
     ax.set_ylabel('Number (' + str(scale) + ')')  # Set the y-axis label
 
     ax.yaxis.set_tick_params(length=0)  # Style the y-axis labels
     ax.xaxis.set_tick_params(length=0)  # Style the x-axis labels
 
     ax.set_xlim([tmin, tmax])
-    initial_date = values.index.values[0]
-    days_ticks = range(tmax)
-    days_labels = [str(pd.to_datetime(initial_date + np.timedelta64(i, 'D')).day).zfill(2) + '/' +
-                   str(pd.to_datetime(initial_date + np.timedelta64(i, 'D')).month).zfill(2) for i in days_ticks]
 
-    ax.set_xticks(days_ticks[::days_range])
-    ax.set_xticklabels(days_labels[::days_range])
+    ax = format_axis(ax, values, days_range, tmax)
 
     ax.set_title(title)  # Set the title
 
