@@ -7,12 +7,13 @@ from models import sir_model, logistic_model
 data = covid19.get_data('https://covid19.isciii.es/resources/serie_historica_acumulados.csv', drop_last=6,
                         date_label='FECHA', country_label='CCAA', confirmed_label='CASOS',
                         deaths_label='Fallecidos', recovered_label='Recuperados', dayfirst=True,
-                        sumcolumns={'CASOS':['CASOS', 'PCR+', 'TestAc+']})
+                        sumcolumns={'CASOS': ['PCR+', 'TestAc+']})
 
 # Clean all the data with some Threshold to remove the first days of wrong data
 confirmed, deaths, active = covid19.clean_data(data, None, threshold=[1000, 1, 1000])
 print('Last Update: ', confirmed.index.max())
 
+# Daily Increases
 covid19.daily_increases(data, None)
 
 # Compare all regions
@@ -20,7 +21,7 @@ covid19.compare(data, data['Country'].drop_duplicates(), 'figures\\compare.png')
 
 # Fit the SIR Model
 covid19.fit(active,  sir_model, [0, 0, 1, 0, -np.inf], [np.inf, np.inf, np.inf, np.inf, np.inf],
-            [1, 5, 15, 1E6, 0], title='SIR Model', tmax=70, days_range=20)
+            [1, 1, 50, 1E8, 0], title='SIR Model', tmax=70, days_range=20)
 
 # Fit the Logistic Model for confirmed cases
 covid19.fit(confirmed,  logistic_model, [0, 0, 0], [np.inf, np.inf, np.inf], [1, 1, 1],

@@ -5,6 +5,7 @@ from scipy import optimize
 from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
 
+
 def get_data(csv_route, date_label='Date', country_label='Country', confirmed_label='Confirmed',
              deaths_label='Deaths', recovered_label='Recovered', drop_first=0, drop_last=0, dayfirst=False,
              sumcolumns=None):
@@ -27,10 +28,10 @@ def get_data(csv_route, date_label='Date', country_label='Country', confirmed_la
         - sumcolumns : (dict) If not None, for each key it takes the columns from a list and adds it (Default None)
         """
 
-    df = pd.read_csv(csv_route, skiprows=drop_first, skipfooter=drop_last, engine='python').fillna(0)  # Read the CSV
+    df = pd.read_csv(csv_route, skiprows=drop_first, skipfooter=drop_last, engine='python')  # Read the CSV
     if sumcolumns:
         for col in sumcolumns:
-            df[col] = df[sumcolumns[col]].sum(axis=1)
+            df.loc[df[col].isnull(), col] = df.loc[df[col].isnull(), sumcolumns[col]].sum(axis=1)
     df = df.rename({date_label: 'Date', country_label: 'Country', confirmed_label: 'Confirmed',
                     deaths_label: 'Deaths', recovered_label: 'Recovered'}, axis=1) # Rename using labels provided
     df['Date'] = pd.to_datetime(df['Date'], dayfirst=dayfirst)  # Converts date strings to timestamp
