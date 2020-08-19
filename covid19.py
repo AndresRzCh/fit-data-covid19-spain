@@ -3,6 +3,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import optimize
 from pandas.plotting import register_matplotlib_converters
+from fbprophet import Prophet
+import datetime
+import os, sys
+
 register_matplotlib_converters()
 
 
@@ -28,17 +32,17 @@ def get_data(csv_route, date_label='Date', country_label='Country', confirmed_la
         - sumcolumns : (dict) If not None, for each key it takes the columns from a list and adds it (Default None)
         """
 
-    df = pd.read_csv(csv_route, skiprows=drop_first, skipfooter=drop_last, engine='python')  # Read the CSV
+    df = pd.read_csv(csv_route, skiprows=drop_first, skipfooter=drop_last, engine='python', encoding='utf-8')  # Read the CSV
     if sumcolumns:
         for col in sumcolumns:
-            df.loc[df[col].isnull(), col] = df.loc[df[col].isnull(), sumcolumns[col]].sum(axis=1)
+            df.loc[df[col].isnull(), col] = df.loc[df[col].isnull(), sumcolumns[col]].max(axis=1)
     df = df.rename({date_label: 'Date', country_label: 'Country', confirmed_label: 'Confirmed',
                     deaths_label: 'Deaths', recovered_label: 'Recovered'}, axis=1) # Rename using labels provided
     df['Date'] = pd.to_datetime(df['Date'], dayfirst=dayfirst)  # Converts date strings to timestamp
-    return df
+    return df[['Date', 'Country', 'Confirmed', 'Deaths', 'Recovered']]
 
 
-def clean_data(data, country=None, threshold=None, lastminute=None):
+def clean_data(data, country=None, threshold=None, from_date=None):
 
     """ Select one (or none) country to study, and returns the same DataFrame read from
         the .csv file, filtered by country, and applying a minimum threshold in order to
@@ -47,8 +51,7 @@ def clean_data(data, country=None, threshold=None, lastminute=None):
         Parameters:
         - data : (pandas.DataFrame) Output of get_data() method
         - country: (str) Country to study. Use None for studying global data. (Default None)
-        - threshold: (int) Minimum number of cases to consider (Default 10)
-        - lastminute: (int) Last minute data for the series to study, manual enter"""
+        - threshold: (int) Minimum number of cases to consider (Default 10)"""
 
     if threshold is None:
         threshold = [0, 0, 0]
@@ -56,18 +59,15 @@ def clean_data(data, country=None, threshold=None, lastminute=None):
     if country:
         data = data[data['Country'] == country]  # Filter by country when it's given
 
-    data = data.groupby('Date').sum()  # Group by date and sum cases
+    if from_date:
+        data = data[data['Date'] > pd.to_datetime(from_date, format='%m/%d/%Y')]
 
+    data = data.groupby('Date').sum()  # Group by date and sum cases
     data['Active'] = data['Confirmed'] - data['Deaths'] - data['Recovered']  # Active Cases
 
     confirmed = data.loc[data['Confirmed'] >= threshold[0], 'Confirmed'].drop_duplicates()
     deaths = data.loc[data['Deaths'] >= threshold[1], 'Deaths'].drop_duplicates()
     active = data.loc[data['Active'] >= threshold[2], 'Active'].drop_duplicates()
-
-    if lastminute:
-        confirmed[pd.datetime.now()] = lastminute[0]
-        deaths[pd.datetime.now()] = lastminute[1]
-        active[pd.datetime.now()] = lastminute[0] - lastminute[1] - lastminute[2]
 
     return confirmed, deaths, active
 
@@ -252,3 +252,65 @@ def fit(values, model, lbounds, gbounds, guess=None, route='figures\\', title='M
     plt.tight_layout()
     fig.savefig(route)  # Save the figure into the route
     return sol
+
+
+class suppress_stdout_stderr(object):
+
+    """A context manager for doing a "deep suppression" of stdout and stderr in
+    Python, i.e. will suppress all print, even if the print originates in a
+    compiled C/Fortran sub-function.
+       This will not suppress raised exceptions, since exceptions are printed
+    to stderr just before a script exits, and after the context manager has
+    exited (at least, I think that is why it lets exceptions through)."""
+
+    def __init__(self):
+        # Open a pair of null files
+        self.null_fds = [os.open(os.devnull, os.O_RDWR) for x in range(2)]
+        # Save the actual stdout (1) and stderr (2) file descriptors.
+        self.save_fds = (os.dup(1), os.dup(2))
+
+    def __enter__(self):
+        # Assign the null pointers to stdout and stderr.
+        os.dup2(self.null_fds[0], 1)
+        os.dup2(self.null_fds[1], 2)
+
+    def __exit__(self, *_):
+        # Re-assign the real stdout/stderr back to (1) and (2)
+        os.dup2(self.save_fds[0], 1)
+        os.dup2(self.save_fds[1], 2)
+        # Close the null files
+        os.close(self.null_fds[0])
+        os.close(self.null_fds[1])
+
+
+def predict(y, filename='sample.csv', periods=25):
+
+    """Predict the shape of a curve given a .csv file with a column named "date" for the time series and another
+       column "y", which is the feature to predict.
+
+           Parameters:
+           - filename : (str) Name of the .csv file containing the time series
+           - y : (str) Feature to predict
+           - periods : (int) periods parameter for Prophet.make_future_dataframe() function"""
+
+    file = pd.read_csv(filename)
+    file['Date'] = pd.to_datetime(file['Date'])
+    df = pd.DataFrame()
+    df['ds'] = file['Date']
+    df['y'] = file[y]
+    file = file[['Date', y]].rename({y: 'Real'}, axis=1)
+
+    model = Prophet(yearly_seasonality=False, n_changepoints=24, daily_seasonality=True)
+    with suppress_stdout_stderr():
+        model.fit(df)
+    future = model.make_future_dataframe(periods=25)
+    forecast = model.predict(future)
+    fig = model.plot(forecast)
+    fig.savefig('figures\\prophet_' + y.lower() + '.png')
+
+    today = pd.to_datetime('today').date()
+    today = np.datetime64(datetime.datetime(today.year, today.month, today.day, 0, 0, 0, 0))
+    cols = ['ds', 'yhat', 'yhat_lower', 'yhat_upper']
+    sol = pd.concat([forecast.loc[forecast['ds'] == today + np.timedelta64(i, 'D'), cols] for i in [-1, 0, 1]])
+    renaming = {'ds': 'Date', 'yhat': 'Feature', 'yhat_lower': 'Lower', 'yhat_upper': 'Upper'}
+    return sol.rename(renaming, axis=1).merge(file, on='Date', how='left')

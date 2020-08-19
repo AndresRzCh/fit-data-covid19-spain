@@ -5,11 +5,11 @@ or compare cases between countries.
 
 In this particular case, for Spain, the SIR Model gives the following figure:
 
-![](figures/sir_model.png "SIR Model")
+![](figures/sir_model.png  "SIR Model")
 
 Fitting the logistic model to new dates we get the following:
 
-![](figures/logistic_model_confirmed.png "Logistic Model")
+![](figures/logistic_model_confirmed.png "Logistic Model" )
 
 Daily new cases and deaths for Spain:
 
@@ -18,6 +18,10 @@ Daily new cases and deaths for Spain:
 Different confirmed cases for all the counties in Spain:
 
 ![](figures/compare.png "Compare Countries")
+
+Simple prediction using Facebook Prophet's Time Series:
+ 
+![](figures/prophet_ia.png "IA")
 
 ## Usage example
 
