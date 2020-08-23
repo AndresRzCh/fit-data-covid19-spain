@@ -21,3 +21,4 @@ def full_test():
 
 
 print(covid19.predict('IA'))
+print(covid19.predict('U14D'))

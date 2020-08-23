@@ -5,7 +5,7 @@ from scipy import optimize
 from pandas.plotting import register_matplotlib_converters
 from fbprophet import Prophet
 import datetime
-import os, sys
+import os
 
 register_matplotlib_converters()
 
@@ -300,7 +300,7 @@ def predict(y, filename='sample.csv', periods=25):
     df['y'] = file[y]
     file = file[['Date', y]].rename({y: 'Real'}, axis=1)
 
-    model = Prophet(yearly_seasonality=False, n_changepoints=24, daily_seasonality=True)
+    model = Prophet(yearly_seasonality=False, n_changepoints=8, daily_seasonality=True, interval_width=0.999)
     with suppress_stdout_stderr():
         model.fit(df)
     future = model.make_future_dataframe(periods=25)
